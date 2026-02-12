@@ -1,7 +1,7 @@
 \documentclass{article}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[portuguese]{babel}
+\usepackage[english]{babel}
 \usepackage{graphicx}
 \usepackage{hyperref}
 \usepackage{geometry}
@@ -11,7 +11,7 @@
 
 \geometry{a4paper, margin=0.5in}
 
-\title{Detecção de Mudanças e Classificação de Uso do Solo}
+\title{Change Detection and Land Use Classification}
 \author{}
 \date{}
 
@@ -19,120 +19,120 @@
 
 \maketitle
 
-\section{Visão Geral}
-A análise de mudanças em dados de sensoriamento remoto multi-imagem e multi-data nos ajuda a descobrir e entender condições globais. Este desafio utiliza características geográficas derivadas de imagens de satélite. Os dados foram processados usando técnicas de visão computacional e estão prontos para exploração usando métodos de aprendizado de máquina.
+\section{Overview}
+Analysing changes in multi-image, multi-date remote sensing data helps us to discover and understand global conditions. This challenge uses satellite imagery-derived geographical features. The data has been processed using computer vision techniques and is ready for exploration using machine learning methods.
 
-O objetivo deste desafio é classificar uma área geográfica dada em seis categorias.
+The aim of this challenge is to classify a given geographical area into six categories.
 
-\section{Classes do Desafio}
-O objetivo é classificar cada polígono em uma das seguintes 6 classes:
+\section{Classes}
+This challenge aims to classify a given geographical area into six classes:
 
 \begin{itemize}
-    \item \textbf{Demolition} (Demolição): 0
-    \item \textbf{Road} (Estrada): 1
-    \item \textbf{Residential} (Residencial): 2
-    \item \textbf{Commercial} (Comercial): 3
-    \item \textbf{Industrial} (Industrial): 4
-    \item \textbf{Mega Projects} (Mega Projetos): 5
+    \item \textbf{Demolition}: 0
+    \item \textbf{Road}: 1
+    \item \textbf{Residential}: 2
+    \item \textbf{Commercial}: 3
+    \item \textbf{Industrial}: 4
+    \item \textbf{Mega Projects}: 5
 \end{itemize}
 
-\section{Descrição dos Dados}
-Os dados de treinamento e teste estão nos arquivos \texttt{train.geojson} e \texttt{test.geojson}, respectivamente.
+\section{Data Description}
+The training and test sets are provided in the \texttt{train.geojson} and \texttt{test.geojson} files, respectively.
 
-\subsection{Características (Features)}
-As características geográficas incluem:
+\subsection{Features}
+The geographical features are:
 \begin{enumerate}
-    \item Um polígono irregular (\texttt{geometry}).
-    \item Valores categóricos descrevendo o status do polígono em cinco datas diferentes (ex: em construção no dia 0, completado nos dias seguintes).
-    \item Características urbanas da vizinhança (ex: região urbana densa, industrial).
-    \item Características geográficas da vizinhança (ex: perto de um rio ou colina).
+    \item An irregular polygon (\texttt{geometry}).
+    \item Categorical values describing the status of the polygon on five different dates (e.g., under construction on day 0, completed on the following dates).
+    \item Neighbourhood urban features (e.g., the polygon is in a dense urban and industrial region).
+    \item Neighbourhood geographic features (e.g., the polygon is near a river and a hill).
 \end{enumerate}
 
-\subsection{Colunas do Dataset}
-As colunas disponíveis nos arquivos geojson são:
+\subsection{Dataset Columns}
+The columns available in the geojson files are:
 \begin{itemize}
-    \item \texttt{date0} até \texttt{date4}: Datas de observação (DD-MM-YYYY).
-    \item \texttt{change\_status\_date0} até \texttt{change\_status\_date4}: Status do polígono em cada data.
-    \item \texttt{urban\_type}: Valores separados por vírgula mostrando tipos urbanos da vizinhança.
-    \item \texttt{geography\_type}: Valores separados por vírgula mostrando tipos geográficos da vizinhança.
-    \item \texttt{geometry}: Representação vetorial dos polígonos.
-    \item \texttt{change\_type}: Rótulo a ser classificado (apenas no treino).
+    \item \texttt{date0} to \texttt{date4}: Observation dates (DD-MM-YYYY).
+    \item \texttt{change\_status\_date0} to \texttt{change\_status\_date4}: Status of polygon on each date.
+    \item \texttt{urban\_type}: Comma-separated multiple values showing neighbourhood urban types.
+    \item \texttt{geography\_type}: Comma-separated multiple values showing neighbourhood geographic types.
+    \item \texttt{geometry}: Vector representation of geographic polygons.
+    \item \texttt{change\_type}: Label to be classified (training set only).
 \end{itemize}
 
-Além disso, para cada data, são fornecidas estatísticas de cor de imagens de satélite de 50cm:
+For each date, scalar mean and standard deviation values of the colour image taken from a 50cm satellite are also provided:
 \begin{itemize}
-    \item Médias: \texttt{img\_red\_mean\_date1} até \texttt{img\_red\_mean\_date5}, etc.
-    \item Desvios Padrão: \texttt{img\_red\_std\_date1} até \texttt{img\_red\_std\_date5}, etc.
+    \item Means: \texttt{img\_red\_mean\_date1} to \texttt{img\_red\_mean\_date5}, etc.
+    \item Standard Deviations: \texttt{img\_red\_std\_date1} to \texttt{img\_red\_std\_date5}, etc.
 \end{itemize}
-\textbf{Nota Importante:} Observe que as colunas de estatísticas de imagem usam sufixos de \texttt{date1} a \texttt{date5}, enquanto as colunas de data e status usam de \texttt{date0} a \texttt{date4}.
+\textbf{Important Note:} Please note that image statistics columns use suffixes from \texttt{date1} to \texttt{date5}, while date and status columns use \texttt{date0} to \texttt{date4}.
 
-\section{Pipeline Sugerido}
-O pipeline proposto segue a estrutura vista no curso:
+\section{Pipeline}
+The proposed pipeline is the one introduced in the first lecture of the ML course:
 \begin{enumerate}
-    \item \textbf{Pré-processamento de Dados}: Converter os dados para o formato apropriado.
-    \item \textbf{Engenharia de Features e Redução de Dimensionalidade}:
+    \item \textbf{Data Preprocessing}: You need to preprocess the data and convert it into the appropriate format.
+    \item \textbf{Feature Engineering and Dimensionality Reduction}:
     \begin{itemize}
-        \item Explorar One-Hot Encoding para tipos urbanos e geográficos.
-        \item Criar features geométricas (área, perímetro) a partir dos polígonos.
-        \item Calcular intervalo de dias entre as datas consecutivas.
-        \item Seleção de features ou redução de dimensionalidade pode ser benéfica.
+        \item Explore One-Hot Encoding for urban and geographic types.
+        \item Create geometric features (area, perimeter) from the polygons.
+        \item Calculate the number of days between two consecutive dates.
+        \item Feature selection or dimensionality reduction could be beneficial.
     \end{itemize}
-    \item \textbf{Algoritmo de Aprendizado}:
+    \item \textbf{Learning Algorithm}:
     \begin{itemize}
-        \item Um baseline simples (k-NN) é fornecido em \texttt{skeleton\_code.py} ($\approx 40\%$ de performance). O código utiliza apenas a \textbf{área do polígono} como feature.
-        \item Testar outros classificadores: Regressão Logística, SVM, Árvores de Decisão, Redes Neurais, Ensemble Learning.
+        \item A simple baseline (k-NN) is provided in \texttt{skeleton\_code.py} ($\approx 40\%$ performance). The code uses only the \textbf{polygon area} as a feature.
+        \item Test other classifiers: Logistic Regression, SVM, Decision Trees, Neural Networks, Ensemble Learning.
     \end{itemize}
-    \item \textbf{Avaliação}: A métrica de avaliação é o \textbf{Mean F1-Score}.
+    \item \textbf{Evaluation}: The evaluation metric is the \textbf{Mean F1-Score}.
 \end{enumerate}
 
-\section{Submissão e Avaliação}
-O trabalho deve ser feito em grupos de 3-4 alunos.
+\section{Submission and Grading}
+Form groups of 3-4 students.
 
-\subsection{Entregáveis}
+\subsection{Deliverables}
 \begin{enumerate}
-    \item \textbf{Submissão no Kaggle} (40 pontos):
+    \item \textbf{Kaggle Submission} (40 points):
     \begin{itemize}
-        \item Comando para baixar dados: \\ \texttt{kaggle competitions download -c 2-el-1730-machine-learning-project-2026}
-        \item \textbf{Passo a Passo para Submissão:}
+        \item Command to download data: \\ \texttt{kaggle competitions download -c 2-el-1730-machine-learning-project-2026}
+        \item \textbf{Submission Step-by-Step:}
         \begin{enumerate}
-            \item Executar o modelo treinado nos dados de teste (\texttt{test.geojson}).
-            \item Obter os rótulos de classe preditos para cada instância.
-            \item Criar um arquivo \texttt{sample\_submission.csv} contendo o cabeçalho e duas colunas: \texttt{Id} e \texttt{change\_type}.
-            \item Criar uma conta no Kaggle (uma por time) e realizar a submissão fazendo upload deste arquivo.
+            \item Run your trained model on the test data (\texttt{test.geojson}).
+            \item Get the predicted class labels for each instance.
+            \item Create a \texttt{sample\_submission.csv} file containing the header and two columns: \texttt{Id} and \texttt{change\_type}.
+            \item Create an account on Kaggle (one for all team members) and create a new submission by uploading this file.
         \end{enumerate}
-        \item O Kaggle avaliará automaticamente:
+        \item Kaggle will automatically evaluate your predictions:
         \begin{itemize}
-            \item Placar público (durante competição): baseado em $\approx 30\%$ dos dados de teste.
-            \item Placar final (Private Leaderboard): baseado nos $70\%$ restantes.
+            \item Public Leaderboard (during competition): based on $\approx 30\%$ of test data.
+            \item Private Leaderboard (final results): based on the remaining $70\%$.
         \end{itemize}
-        \item Limite diário: 10 submissões.
+        \item Daily limit: 10 submissions.
     \end{itemize}
     
-    \item \textbf{Relatório no Edunao} (50 pontos):
+    \item \textbf{Report on Edunao} (50 points):
     \begin{itemize}
-        \item Arquivo PDF apenas.
-        \item Nome do arquivo: \texttt{nomedotime\_aluno1\_aluno2\_aluno3.pdf}.
-        \item Deve conter nomes completos e nome do time no Kaggle.
-        \item \textbf{Seção 1: Feature Engineering}: Motivação, experimentos, combinações testadas.
-        \item \textbf{Seção 2: Model Tuning e Comparação}: Comparar múltiplos classificadores, ajuste de hiperparâmetros, validação cruzada, discussão de modelos descartados.
+        \item PDF file only.
+        \item Filename: \texttt{teamname\_student1name\_student2name\_student3name.pdf}.
+        \item Must include full names and Kaggle team name.
+        \item \textbf{Section 1: Feature Engineering}: Motivation, intuition, experiments, combinations of features tested.
+        \item \textbf{Section 2: Model Tuning and Comparison}: Compare multiple classifiers, parameter tuning procedure, cross-validation, discussion of discarded models.
     \end{itemize}
     
-    \item \textbf{Código no Edunao} (10 pontos - Avaliação Geral):
+    \item \textbf{Code on Edunao} (10 points - Global Grading):
     \begin{itemize}
-        \item Arquivo ZIP: \texttt{nome\_do\_seu\_time.zip} (máx 512MB).
-        \item Código reproduzível.
-        \item Os 10 pontos também cobrem respeito às diretrizes e clareza.
+        \item ZIP file: \texttt{name\_of\_your\_team.zip} (max 512MB).
+        \item Reproducible code.
+        \item The 10 points also cover respecting submission guidelines, organization, and clarity.
     \end{itemize}
 \end{enumerate}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.8\textwidth]{classes.png}
-    \caption{Amostras do 'test.geojson' mostrando diferentes tipos de mudanças, status, datas, e características urbanas/geográficas.}
+    \caption{Samples from 'test.geojson' showing different change types, status, dates, and neighbourhood labels.}
     \label{fig:classes}
 \end{figure}
 
-\section{Referências}
-O conjunto de dados faz parte do paper \textit{"QFabric: Multi-Task Change Detection Dataset"} (CVPR 2021W) de Sagar Verma et al.
+\section{References}
+The dataset is part of the paper \textit{"QFabric: Multi-Task Change Detection Dataset"} (CVPR 2021W) by Sagar Verma et al.
 
 \end{document}
