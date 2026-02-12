@@ -1,0 +1,80 @@
+
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+from sklearn.metrics import make_scorer, f1_score
+import sys
+import os
+# Add project root to path
+sys.path.append(os.getcwd())
+from src.features import load_data, engineer_features
+import argparse
+
+# Target mapping as per instructions/skeleton code
+CHANGE_TYPE_MAP = {
+    'Demolition': 0, 
+    'Road': 1, 
+    'Residential': 2, 
+    'Commercial': 3, 
+    'Industrial': 4,
+    'Mega Projects': 5
+}
+
+def get_X_y(df):
+    """
+    Splits DataFrame into X and y.
+    """
+    if 'change_type' in df.columns:
+        y = df['change_type'].map(CHANGE_TYPE_MAP)
+        X = df.drop(columns=['change_type', 'index'], errors='ignore')
+    else:
+        y = None
+        X = df.drop(columns=['index'], errors='ignore')
+    
+    # Ensure all columns are numeric
+    X = X.select_dtypes(include=[np.number])
+    return X, y
+
+def train_and_evaluate():
+    """
+    Trains models and evaluating them using Cross-Validation.
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--sample', type=int, default=None, help='Number of rows to sample for quick testing')
+    args = parser.parse_args()
+
+    rows = slice(0, args.sample) if args.sample else None
+    
+    print(f"Loading and preparing data ({'sample' if rows else 'full'})...")
+    train_geo, _ = load_data('dados/train.geojson', 'dados/test.geojson', rows=rows)
+    train_df = engineer_features(train_geo)
+    
+    X, y = get_X_y(train_df)
+    
+    print(f"Features: {X.shape[1]}")
+    print(f"Samples: {X.shape[0]}")
+    
+    # Models to test
+    models = {
+        'RandomForest': RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1),
+        'XGBoost': XGBClassifier(n_estimators=100, learning_rate=0.1, random_state=42, n_jobs=-1)
+    }
+    
+    # CV Strategy
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    scorer = make_scorer(f1_score, average='macro')
+    
+    results = {}
+    print("\nStarting Cross-Validation...")
+    for name, model in models.items():
+        print(f"Evaluating {name}...")
+        scores = cross_val_score(model, X, y, cv=cv, scoring=scorer, n_jobs=-1)
+        results[name] = scores
+        print(f"{name} F1-Macro: {scores.mean():.4f} (+/- {scores.std() * 2:.4f})")
+        
+    return results
+
+if __name__ == "__main__":
+    train_and_evaluate()
