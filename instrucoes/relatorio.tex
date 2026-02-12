@@ -1,0 +1,138 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[portuguese]{babel}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{float}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\geometry{a4paper, margin=0.5in}
+
+\title{Detecção de Mudanças e Classificação de Uso do Solo}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Visão Geral}
+A análise de mudanças em dados de sensoriamento remoto multi-imagem e multi-data nos ajuda a descobrir e entender condições globais. Este desafio utiliza características geográficas derivadas de imagens de satélite. Os dados foram processados usando técnicas de visão computacional e estão prontos para exploração usando métodos de aprendizado de máquina.
+
+O objetivo deste desafio é classificar uma área geográfica dada em seis categorias.
+
+\section{Classes do Desafio}
+O objetivo é classificar cada polígono em uma das seguintes 6 classes:
+
+\begin{itemize}
+    \item \textbf{Demolition} (Demolição): 0
+    \item \textbf{Road} (Estrada): 1
+    \item \textbf{Residential} (Residencial): 2
+    \item \textbf{Commercial} (Comercial): 3
+    \item \textbf{Industrial} (Industrial): 4
+    \item \textbf{Mega Projects} (Mega Projetos): 5
+\end{itemize}
+
+\section{Descrição dos Dados}
+Os dados de treinamento e teste estão nos arquivos \texttt{train.geojson} e \texttt{test.geojson}, respectivamente.
+
+\subsection{Características (Features)}
+As características geográficas incluem:
+\begin{enumerate}
+    \item Um polígono irregular (\texttt{geometry}).
+    \item Valores categóricos descrevendo o status do polígono em cinco datas diferentes (ex: em construção no dia 0, completado nos dias seguintes).
+    \item Características urbanas da vizinhança (ex: região urbana densa, industrial).
+    \item Características geográficas da vizinhança (ex: perto de um rio ou colina).
+\end{enumerate}
+
+\subsection{Colunas do Dataset}
+As colunas disponíveis nos arquivos geojson são:
+\begin{itemize}
+    \item \texttt{date0} até \texttt{date4}: Datas de observação (DD-MM-YYYY).
+    \item \texttt{change\_status\_date0} até \texttt{change\_status\_date4}: Status do polígono em cada data.
+    \item \texttt{urban\_type}: Valores separados por vírgula mostrando tipos urbanos da vizinhança.
+    \item \texttt{geography\_type}: Valores separados por vírgula mostrando tipos geográficos da vizinhança.
+    \item \texttt{geometry}: Representação vetorial dos polígonos.
+    \item \texttt{change\_type}: Rótulo a ser classificado (apenas no treino).
+\end{itemize}
+
+Além disso, para cada data, são fornecidas estatísticas de cor de imagens de satélite de 50cm:
+\begin{itemize}
+    \item Médias: \texttt{img\_red\_mean\_date1} até \texttt{img\_red\_mean\_date5}, etc.
+    \item Desvios Padrão: \texttt{img\_red\_std\_date1} até \texttt{img\_red\_std\_date5}, etc.
+\end{itemize}
+\textbf{Nota Importante:} Observe que as colunas de estatísticas de imagem usam sufixos de \texttt{date1} a \texttt{date5}, enquanto as colunas de data e status usam de \texttt{date0} a \texttt{date4}.
+
+\section{Pipeline Sugerido}
+O pipeline proposto segue a estrutura vista no curso:
+\begin{enumerate}
+    \item \textbf{Pré-processamento de Dados}: Converter os dados para o formato apropriado.
+    \item \textbf{Engenharia de Features e Redução de Dimensionalidade}:
+    \begin{itemize}
+        \item Explorar One-Hot Encoding para tipos urbanos e geográficos.
+        \item Criar features geométricas (área, perímetro) a partir dos polígonos.
+        \item Calcular intervalo de dias entre as datas consecutivas.
+        \item Seleção de features ou redução de dimensionalidade pode ser benéfica.
+    \end{itemize}
+    \item \textbf{Algoritmo de Aprendizado}:
+    \begin{itemize}
+        \item Um baseline simples (k-NN) é fornecido em \texttt{skeleton\_code.py} ($\approx 40\%$ de performance). O código utiliza apenas a \textbf{área do polígono} como feature.
+        \item Testar outros classificadores: Regressão Logística, SVM, Árvores de Decisão, Redes Neurais, Ensemble Learning.
+    \end{itemize}
+    \item \textbf{Avaliação}: A métrica de avaliação é o \textbf{Mean F1-Score}.
+\end{enumerate}
+
+\section{Submissão e Avaliação}
+O trabalho deve ser feito em grupos de 3-4 alunos.
+
+\subsection{Entregáveis}
+\begin{enumerate}
+    \item \textbf{Submissão no Kaggle} (40 pontos):
+    \begin{itemize}
+        \item Comando para baixar dados: \\ \texttt{kaggle competitions download -c 2-el-1730-machine-learning-project-2026}
+        \item \textbf{Passo a Passo para Submissão:}
+        \begin{enumerate}
+            \item Executar o modelo treinado nos dados de teste (\texttt{test.geojson}).
+            \item Obter os rótulos de classe preditos para cada instância.
+            \item Criar um arquivo \texttt{sample\_submission.csv} contendo o cabeçalho e duas colunas: \texttt{Id} e \texttt{change\_type}.
+            \item Criar uma conta no Kaggle (uma por time) e realizar a submissão fazendo upload deste arquivo.
+        \end{enumerate}
+        \item O Kaggle avaliará automaticamente:
+        \begin{itemize}
+            \item Placar público (durante competição): baseado em $\approx 30\%$ dos dados de teste.
+            \item Placar final (Private Leaderboard): baseado nos $70\%$ restantes.
+        \end{itemize}
+        \item Limite diário: 10 submissões.
+    \end{itemize}
+    
+    \item \textbf{Relatório no Edunao} (50 pontos):
+    \begin{itemize}
+        \item Arquivo PDF apenas.
+        \item Nome do arquivo: \texttt{nomedotime\_aluno1\_aluno2\_aluno3.pdf}.
+        \item Deve conter nomes completos e nome do time no Kaggle.
+        \item \textbf{Seção 1: Feature Engineering}: Motivação, experimentos, combinações testadas.
+        \item \textbf{Seção 2: Model Tuning e Comparação}: Comparar múltiplos classificadores, ajuste de hiperparâmetros, validação cruzada, discussão de modelos descartados.
+    \end{itemize}
+    
+    \item \textbf{Código no Edunao} (10 pontos - Avaliação Geral):
+    \begin{itemize}
+        \item Arquivo ZIP: \texttt{nome\_do\_seu\_time.zip} (máx 512MB).
+        \item Código reproduzível.
+        \item Os 10 pontos também cobrem respeito às diretrizes e clareza.
+    \end{itemize}
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{classes.png}
+    \caption{Amostras do 'test.geojson' mostrando diferentes tipos de mudanças, status, datas, e características urbanas/geográficas.}
+    \label{fig:classes}
+\end{figure}
+
+\section{Referências}
+O conjunto de dados faz parte do paper \textit{"QFabric: Multi-Task Change Detection Dataset"} (CVPR 2021W) de Sagar Verma et al.
+
+\end{document}
