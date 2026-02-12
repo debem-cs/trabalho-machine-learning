@@ -56,6 +56,13 @@ def engineer_features(df: gpd.GeoDataFrame) -> pd.DataFrame:
             df[f'{col}_dt'] = pd.to_datetime(df[col], format='%d-%m-%Y', errors='coerce')
             # Extract basic date components (optional, maybe numeric timestamp is better)
             # df[f'{col}_timestamp'] = df[f'{col}_dt'].astype('int64') // 10**9
+            
+            # Seasonality
+            df[f'{col}_month'] = df[f'{col}_dt'].dt.month
+            # Cyclical encoding for month/day of year
+            doy = df[f'{col}_dt'].dt.dayofyear
+            df[f'{col}_doy_sin'] = np.sin(2 * np.pi * doy / 365)
+            df[f'{col}_doy_cos'] = np.cos(2 * np.pi * doy / 365)
 
     # Calculate durations (days)
     for i in range(4):
@@ -101,6 +108,38 @@ def engineer_features(df: gpd.GeoDataFrame) -> pd.DataFrame:
     if img_means:
         df['img_overall_mean'] = df[img_means].mean(axis=1)
         df['img_overall_std'] = df[img_stds].mean(axis=1)
+        
+    # 6. Temporal Differences & Ratios
+    # Calculate differences between consecutive dates for image stats
+    # Dates for images are 1 to 5
+    colors = ['red', 'green', 'blue']
+    metrics = ['mean', 'std']
+    
+    for i in range(1, 5): # 1 to 4
+        current_date = i
+        next_date = i + 1
+        
+        for color in colors:
+            for metric in metrics:
+                col_curr = f'img_{color}_{metric}_date{current_date}'
+                col_next = f'img_{color}_{metric}_date{next_date}'
+                
+                if col_curr in df.columns and col_next in df.columns:
+                    # Difference
+                    df[f'diff_{color}_{metric}_{current_date}_{next_date}'] = df[col_next] - df[col_curr]
+                    
+                    # Ratio (handled carefully) or relative change
+                    # (next - curr) / (curr + 1e-6)
+                    df[f'rel_change_{color}_{metric}_{current_date}_{next_date}'] = (df[col_next] - df[col_curr]) / (df[col_curr] + 1e-6)
+
+    # 7. Global Temporal Stats per Band
+    # Std dev of "red_mean" across time -> how much did red change?
+    for color in colors:
+        cols = [f'img_{color}_mean_date{i}' for i in range(1, 6)]
+        cols = [c for c in cols if c in df.columns]
+        if cols:
+            df[f'{color}_temporal_std'] = df[cols].std(axis=1)
+            df[f'{color}_temporal_max_diff'] = df[cols].max(axis=1) - df[cols].min(axis=1)
     
     # Drop non-numeric for ML (dates, geometry if not needed anymore)
     # keeping geometry for visualization or spatial split if needed, but usually dropped for Sklearn

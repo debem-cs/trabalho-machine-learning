@@ -47,13 +47,29 @@ def generate_submission():
     # Align
     X_test = X_test[train_cols]
     
-    # Train
+    # Train XGBoost
     print(f"Training XGBoost on full data ({X_train.shape[0]} samples)...")
-    model = XGBClassifier(n_estimators=100, learning_rate=0.1, random_state=42, n_jobs=-1)
-    model.fit(X_train, y_train)
+    xgb = XGBClassifier(n_estimators=200, learning_rate=0.1, max_depth=10, 
+                        subsample=1.0, colsample_bytree=1.0, 
+                        random_state=42, n_jobs=-1)
+    xgb.fit(X_train, y_train)
     
-    print("Predicting test set...")
-    preds = model.predict(X_test)
+    # Train Random Forest (Balanced)
+    print("Training Random Forest (Balanced)...")
+    rf = RandomForestClassifier(n_estimators=100, class_weight='balanced', random_state=42, n_jobs=-1)
+    rf.fit(X_train, y_train)
+    
+    print("Predicting test set (Ensemble)...")
+    # Soft Voting
+    probs_xgb = xgb.predict_proba(X_test)
+    probs_rf = rf.predict_proba(X_test)
+    
+    # Weighted average (give more weight to XGB if it was better, or equal)
+    # XGB was 0.46, RF was 0.44. Let's do 0.6 XGB + 0.4 RF
+    avg_probs = 0.6 * probs_xgb + 0.4 * probs_rf
+    preds = np.argmax(avg_probs, axis=1) # Get class with max probability
+    
+    # Kaggle sample submission uses integers (0, 1, 2, etc.)
     
     # Kaggle sample submission uses integers (0, 1, 2, etc.)
     # So we don't need to map back to strings!
