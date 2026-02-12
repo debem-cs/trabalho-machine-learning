@@ -27,3 +27,6 @@ Desktop.ini
 # Data
 train.geojson
 test.geojson
+
+# model
+model.joblib

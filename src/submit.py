@@ -49,14 +49,17 @@ def generate_submission():
     
     # Train XGBoost
     print(f"Training XGBoost on full data ({X_train.shape[0]} samples)...")
+    # Using parameters that worked well for Weighted F1 in benchmark (and previous tuning)
     xgb = XGBClassifier(n_estimators=200, learning_rate=0.1, max_depth=10, 
                         subsample=1.0, colsample_bytree=1.0, 
                         random_state=42, n_jobs=-1)
     xgb.fit(X_train, y_train)
     
-    # Train Random Forest (Balanced)
-    print("Training Random Forest (Balanced)...")
-    rf = RandomForestClassifier(n_estimators=100, class_weight='balanced', random_state=42, n_jobs=-1)
+    # Train Random Forest (Standard - NOT Balanced)
+    # Balanced weights hurt Weighted F1 because they penalize majority class errors too much.
+    # Standard RF focuses on Accuracy/Weighted F1 naturally.
+    print("Training Random Forest (Standard)...")
+    rf = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
     rf.fit(X_train, y_train)
     
     print("Predicting test set (Ensemble)...")
@@ -64,16 +67,26 @@ def generate_submission():
     probs_xgb = xgb.predict_proba(X_test)
     probs_rf = rf.predict_proba(X_test)
     
-    # Weighted average (give more weight to XGB if it was better, or equal)
-    # XGB was 0.46, RF was 0.44. Let's do 0.6 XGB + 0.4 RF
-    avg_probs = 0.6 * probs_xgb + 0.4 * probs_rf
+    # Weighted average
+    # RF Standard (0.747) was slightly better than XGB (0.742) on benchmark.
+    # Let's give them equal weight or slightly favor RF.
+    avg_probs = 0.5 * probs_xgb + 0.5 * probs_rf
     preds = np.argmax(avg_probs, axis=1) # Get class with max probability
     
-    # Kaggle sample submission uses integers (0, 1, 2, etc.)
-    
-    # Kaggle sample submission uses integers (0, 1, 2, etc.)
-    # So we don't need to map back to strings!
     pred_labels = preds
+    
+    # Save Model
+    import joblib
+    print("Saving model to model.joblib...")
+    # We save a dictionary containing the models and the feature columns
+    # This is important to ensure columns match during inference
+    model_data = {
+        'xgb': xgb,
+        'rf': rf,
+        'features': train_cols.tolist()
+    }
+    joblib.dump(model_data, 'model.joblib')
+    print("Model saved.")
     
     submission = pd.DataFrame({
         'Id': test_ids,

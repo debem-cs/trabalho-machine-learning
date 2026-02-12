@@ -59,39 +59,56 @@ def train_and_evaluate():
     
     # CV Strategy
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    scorer = make_scorer(f1_score, average='macro')
+    
+    # Primary metric for optimization: Weighted F1 (matches Kaggle 0.90)
+    primary_metric = 'f1_weighted' 
+    
+    # Multiple metrics for reporting
+    scorers = {
+        'f1_macro': make_scorer(f1_score, average='macro'),
+        'f1_weighted': make_scorer(f1_score, average='weighted'),
+        'f1_micro': make_scorer(f1_score, average='micro'), # Equivalent to accuracy
+        'accuracy': 'accuracy'
+    }
     
     results = {}
     
     if args.tune:
         from sklearn.model_selection import RandomizedSearchCV
-        print("\nRunning Hyperparameter Tuning (XGBoost)...")
+        print(f"\nRunning Hyperparameter Tuning (XGBoost) optimizing {primary_metric}...")
         param_dist = {
-            'n_estimators': [100, 200, 300],
-            'learning_rate': [0.01, 0.05, 0.1, 0.2],
-            'max_depth': [3, 5, 7, 10],
-            'subsample': [0.6, 0.8, 1.0],
-            'colsample_bytree': [0.6, 0.8, 1.0]
+            'n_estimators': [200, 300, 400, 500], # Increased estimators
+            'learning_rate': [0.01, 0.05, 0.1],
+            'max_depth': [5, 7, 10, 12],
+            'subsample': [0.7, 0.8, 1.0],
+            'colsample_bytree': [0.7, 0.8, 1.0],
+            'min_child_weight': [1, 3, 5]
         }
         xgb = XGBClassifier(random_state=42, n_jobs=-1, eval_metric='mlogloss')
-        search = RandomizedSearchCV(xgb, param_distributions=param_dist, n_iter=10, cv=3, scoring=scorer, verbose=1, random_state=42, n_jobs=-1)
+        search = RandomizedSearchCV(xgb, param_distributions=param_dist, n_iter=15, cv=3, scoring=primary_metric, verbose=1, random_state=42, n_jobs=-1)
         search.fit(X, y)
         print(f"Best XGB Params: {search.best_params_}")
-        print(f"Best XGB CV Score: {search.best_score_:.4f}")
+        print(f"Best XGB {primary_metric}: {search.best_score_:.4f}")
         results['XGBoost_Tuned'] = search.best_score_
     else:
         # Models to test
+        # Note: Removing class_weight='balanced' might actually improve Weighted F1 
+        # because 'balanced' sacrifices majority class accuracy for minority recall.
         models = {
-            'RandomForest_Balanced': RandomForestClassifier(n_estimators=100, class_weight='balanced', random_state=42, n_jobs=-1),
-            'XGBoost': XGBClassifier(n_estimators=100, learning_rate=0.1, random_state=42, n_jobs=-1)
+            'RandomForest_Balanced': RandomForestClassifier(n_estimators=200, class_weight='balanced', random_state=42, n_jobs=-1),
+            'RandomForest_Standard': RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1), # Test standard RF
+            'XGBoost': XGBClassifier(n_estimators=200, learning_rate=0.1, max_depth=10, random_state=42, n_jobs=-1) # Current Best
         }
         
         print("\nStarting Cross-Validation...")
         for name, model in models.items():
             print(f"Evaluating {name}...")
-            scores = cross_val_score(model, X, y, cv=cv, scoring=scorer, n_jobs=-1)
-            results[name] = scores
-            print(f"{name} F1-Macro: {scores.mean():.4f} (+/- {scores.std() * 2:.4f})")
+            # Calculate metrics independently
+            for metric_name, scorer in scorers.items():
+                scores = cross_val_score(model, X, y, cv=cv, scoring=scorer, n_jobs=-1)
+                print(f"  {metric_name}: {scores.mean():.4f} (+/- {scores.std() * 2:.4f})")
+                if metric_name == primary_metric:
+                    results[name] = scores
             
             # Feature Importance (on full sample)
             if hasattr(model, 'feature_importances_'):
