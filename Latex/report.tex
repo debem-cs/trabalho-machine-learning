@@ -63,24 +63,6 @@ The primary challenge in this dataset involves distinguishing genuine land-use c
 \subsection{Capturing Temporal Dynamics}
 The cornerstone of our approach was the construction of features that explicitly model the evolution of a polygon's spectral properties over time. We hypothesized that a change in land use, such as the construction of a building or a road, would manifest as a significant and abrupt shift in the Red, Green, and Blue bands. To capture this, we calculated the temporal differences between consecutive time steps for all available spectral bands. For instance, computing the difference between the mean red value at date $t+1$ and date $t$ allows the model to detect the magnitude and direction of spectral change. 
 
-\begin{figure}[H]
-\centering
-\begin{lstlisting}[language=Python, caption=Python implementation of temporal difference features]
-# Temporal Differences Calculation
-for i in range(4):
-    date_curr = f'date{i}'
-    date_next = f'date{i+1}'
-    
-    for band in ['red', 'green', 'blue']:
-        curr_col = f'img_{band}_mean_{date_curr}'
-        next_col = f'img_{band}_mean_{date_next}'
-        
-        # Difference (Magnitude of change)
-        diff_col = f'diff_{band}_mean_{i}_{i+1}'
-        df[diff_col] = df[next_col] - df[curr_col]
-\end{lstlisting}
-\end{figure}
-
 However, absolute differences can be misleading due to varying lighting conditions across different satellite passes. To mitigate this, we also derived relative change ratios. By normalizing the difference by the initial value, we provided the classifier with a metric representing the percentage change, which is more robust to illumination artifacts. Furthermore, we aggregated these temporal signals by calculating global statistics—specifically the standard deviation and the range (max-min)—across all time points for each polygon. A high temporal standard deviation serves as a strong proxy for instability, flagging polygons that are likely undergoing transformation, whereas low variance suggests a stable land class such as an established forest or water body.
 
 \subsection{Addressing Seasonality and Phenology}
@@ -115,6 +97,9 @@ We employed \texttt{RandomizedSearchCV} to tune the XGBoost classifier, favoring
 \subsection{Ensemble Strategy for Generalization}
 To ensure the final solution was robust and not overly reliant on the biases of a single algorithm, we implemented a Voting Ensemble. We combined the predictions of the tuned XGBoost model and the Standard Random Forest using a weighted average of their predicted probabilities. 
  
-This ensemble strategy leverages the diverse strengths of the two algorithms: Random Forest reduces variance through bagging and random feature selection, while XGBoost reduces bias through boosting. The final model weights, approximately equal contributions, were determined based on their individual cross-validated performance. This approach yielded a consistent local Weighted F1-Score of approximately 0.78, which translated to a robust performance of approximately 0.93 on the unseen test data. This validates our hypothesis that a combination of temporal feature engineering and a metric-aligned optimization strategy is an effective approach for this challenge.
+This ensemble strategy leverages the diverse strengths of the two algorithms: Random Forest reduces variance through bagging and random feature selection, while XGBoost reduces bias through boosting. The final model weights, approximately equal contributions, were determined based on their individual cross-validated performance. This approach yielded a consistent local Weighted F1-Score of approximately 0.78, which translated to a robust performance of approximately 0.93 on the unseen test data.
+
+\subsection{Advanced Optimization: Pseudo-Labeling}
+To further push the model's performance (targeting an F1-Score of 0.97), we implemented a semi-supervised learning technique known as Pseudo-Labeling. This process involves generating predictions on the test set using our initial ensemble. We then filtered these predictions to retain only those samples where the model's confidence probability exceeded a strict threshold of 95\%. These high-confidence test samples were treated as ground truth and appended to the original training dataset. By retraining the ensemble on this augmented dataset, the model was able to adapt to the specific distribution of the test data, effectively densifying the decision boundaries in regions that were previously sparse. This strategy aimed to capture edge cases that were underrepresented in the original labeled data.
 
 \end{document}
