@@ -12,6 +12,11 @@
 *.snm
 *.vrb
 
+# 
+Latex
+instrucoes
+.vscode
+
 # Python
 __pycache__/
 *.py[cod]
