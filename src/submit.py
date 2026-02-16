@@ -70,9 +70,63 @@ def generate_submission():
     # Weighted average
     # RF Standard (0.747) was slightly better than XGB (0.742) on benchmark.
     # Let's give them equal weight or slightly favor RF.
+    # Weighted average
+    # RF Standard (0.747) was slightly better than XGB (0.742) on benchmark.
+    # Let's give them equal weight or slightly favor RF.
     avg_probs = 0.5 * probs_xgb + 0.5 * probs_rf
-    preds = np.argmax(avg_probs, axis=1) # Get class with max probability
     
+    # --- PROCEED WITH PSEUDO-LABELING ---
+    print("\n--- Starting Pseudo-Labeling ---")
+    confidence_threshold = 0.95
+    
+    # Get max probability for each row
+    max_probs = np.max(avg_probs, axis=1)
+    # Get predicted label
+    initial_preds = np.argmax(avg_probs, axis=1)
+    
+    # Identify high-confidence samples
+    high_conf_idx = np.where(max_probs > confidence_threshold)[0]
+    print(f"Found {len(high_conf_idx)} high-confidence test samples (prob > {confidence_threshold}) out of {len(X_test)}")
+    
+    if len(high_conf_idx) > 0:
+        # Create pseudo-labeled data
+        X_pseudo = X_test.iloc[high_conf_idx].copy()
+        y_pseudo = initial_preds[high_conf_idx]
+        
+        # Combine with original training data
+        print("Augmenting training data with pseudo-labels...")
+        X_train_aug = pd.concat([X_train, X_pseudo], axis=0)
+        y_train_aug = pd.concat([y_train, pd.Series(y_pseudo)], axis=0)
+        
+        print(f"New training set size: {X_train_aug.shape[0]} (Original: {X_train.shape[0]})")
+        
+        # Retrain XGBoost on Augmentation
+        print("Retraining XGBoost on augmented data...")
+        xgb_aug = XGBClassifier(n_estimators=200, learning_rate=0.1, max_depth=10, 
+                            subsample=1.0, colsample_bytree=1.0, 
+                            random_state=42, n_jobs=-1)
+        xgb_aug.fit(X_train_aug, y_train_aug)
+        
+        # Retrain RandomForest on Augmentation
+        print("Retraining Random Forest on augmented data...")
+        rf_aug = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
+        rf_aug.fit(X_train_aug, y_train_aug)
+        
+        # Final Prediction
+        print("Generating final predictions with retrained ensemble...")
+        probs_xgb_final = xgb_aug.predict_proba(X_test)
+        probs_rf_final = rf_aug.predict_proba(X_test)
+        
+        avg_probs_final = 0.5 * probs_xgb_final + 0.5 * probs_rf_final
+        preds = np.argmax(avg_probs_final, axis=1)
+        
+        # Update models for saving (optional, but good for inference)
+        xgb = xgb_aug
+        rf = rf_aug
+    else:
+        print("No high-confidence samples found. Skipping retraining.")
+        preds = initial_preds
+
     pred_labels = preds
     
     # Save Model

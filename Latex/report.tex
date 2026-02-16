@@ -1,0 +1,120 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{float}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstset{style=mystyle}
+
+% Margins setup for a standard academic report
+\geometry{
+ a4paper,
+ left=25mm,
+ top=25mm,
+ bottom=25mm,
+ right=25mm
+}
+
+% Title Format
+\title{\textbf{Change Detection in Satellite Imagery: \\ Feature Engineering and Model Optimization Report}}
+\author{\textbf{Team: 3 Mosqueteiros} \\
+Enzo Jardim Vendramin \\
+Matheus Carvalho da Costa \\
+Pedro de Bem e Canto Cantanhede}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Feature Engineering}
+
+The primary challenge in this dataset involves distinguishing genuine land-use changes from natural variations such as seasonal phenology or lighting differences. Our feature engineering strategy was therefore driven by the motivation to capture the \textit{dynamics} of the spectral signatures rather than relying solely on static snapshots.
+
+\subsection{Capturing Temporal Dynamics}
+The cornerstone of our approach was the construction of features that explicitly model the evolution of a polygon's spectral properties over time. We hypothesized that a change in land use, such as the construction of a building or a road, would manifest as a significant and abrupt shift in the Red, Green, and Blue bands. To capture this, we calculated the temporal differences between consecutive time steps for all available spectral bands. For instance, computing the difference between the mean red value at date $t+1$ and date $t$ allows the model to detect the magnitude and direction of spectral change. 
+
+\begin{figure}[H]
+\centering
+\begin{lstlisting}[language=Python, caption=Python implementation of temporal difference features]
+# Temporal Differences Calculation
+for i in range(4):
+    date_curr = f'date{i}'
+    date_next = f'date{i+1}'
+    
+    for band in ['red', 'green', 'blue']:
+        curr_col = f'img_{band}_mean_{date_curr}'
+        next_col = f'img_{band}_mean_{date_next}'
+        
+        # Difference (Magnitude of change)
+        diff_col = f'diff_{band}_mean_{i}_{i+1}'
+        df[diff_col] = df[next_col] - df[curr_col]
+\end{lstlisting}
+\end{figure}
+
+However, absolute differences can be misleading due to varying lighting conditions across different satellite passes. To mitigate this, we also derived relative change ratios. By normalizing the difference by the initial value, we provided the classifier with a metric representing the percentage change, which is more robust to illumination artifacts. Furthermore, we aggregated these temporal signals by calculating global statistics—specifically the standard deviation and the range (max-min)—across all time points for each polygon. A high temporal standard deviation serves as a strong proxy for instability, flagging polygons that are likely undergoing transformation, whereas low variance suggests a stable land class such as an established forest or water body.
+
+\subsection{Addressing Seasonality and Phenology}
+A significant source of noise in change detection is the natural seasonal cycle of vegetation. A polygon might appear different in winter compared to summer solely due to phenological changes, not because of actual construction. To prevent the model from misinterpreting these seasonal shifts as true structural changes, we extracted temporal metadata from the provided dates. Instead of using raw dates which can be sparse, we decomposed the dates into Month and Day-of-Year components.
+
+Crucially, we applied a cyclical encoding to the Day-of-Year variable using Sine and Cosine transformations. This ensures that the inputs respect the circular nature of time, where the end of one year is adjacent to the beginning of the next. This feature allows the decision trees to learn seasonal context, effectively ``adjusting'' their expectations of spectral values based on the time of year, thereby isolating the anomaly of true change from the background signal of seasonal variation.
+
+\subsection{Geometry and Categorical Embeddings}
+Beyond temporal signals, the physical shape of the polygon provides valuable context. Man-made structures often exhibit regular geometric properties compared to natural features. We computed the Area, Perimeter, and Compactness for each polygon. Compactness, defined as the ratio of area to the square of the perimeter, helps distinguish between compact shapes (like buildings) and elongated shapes (like roads or rivers). Finally, categorical variables such as \texttt{urban\_type} and \texttt{geography\_type} were One-Hot Encoded. This was necessary as these categories do not possess an inherent ordinal relationship, and this encoding allows the tree-based models to split effectively on specific urban contexts without imposing an artificial hierarchy.
+
+\section{Model Tuning and Comparison}
+
+Our modeling strategy prioritized robustness and generalization capability. We focused on tree-based ensemble methods, specifically Random Forest and XGBoost, due to their ability to handle non-linear interactions and input scales without extensive normalization.
+
+\subsection{Metric Investigation and Strategic Pivot}
+Our modeling process began with a critical observation: a substantial discrepancy existed between our local cross-validation scores and our public leaderboard performance. Initially, our local validation yielded a Macro F1-Score of approximately 0.45, whereas the Kaggle leaderboard reported a score exceeding 0.90. This gap suggested a fundamental mismatch in evaluation metrics.
+
+We hypothesized that the leaderboard metric, identified simply as ``Mean F1-Score'', was likely a \textbf{Weighted F1-Score} (or Micro F1/Accuracy) rather than the Macro F1-Score we were optimizing. Macro F1 treats all classes equally, heavily penalizing poor performance on rare classes. In contrast, Weighted F1 is proportional to class frequency. An analysis of the target variable confirmed a severe class imbalance: the \textit{Residential} and \textit{Commercial} classes comprise over 84\% of the dataset, while \textit{Industrial} and \textit{Mega Projects} account for less than 0.5\%.
+
+This insight drove a strategic pivot in our model selection. First, we abandoned the use of class balancing. We initially used a Random Forest with the parameter \texttt{class\_weight} set to \texttt{'balanced'} to boost performance on rare classes. However, while this improved recall for the minority, it slightly degraded precision on the massive majority classes, which was detrimental in the context of a Weighted F1 metric. Consequently, we adopted standard models, switching to a Standard Random Forest (without class weighting) and re-tuning our XGBoost objective to maximize Weighted F1. This approach prioritized maximizing accuracy on the dominant Residential and Commercial classes, effectively aligning our local performance (0.78 Weighted F1) with the leaderboard reality (0.90).
+
+\subsection{Hyperparameter Tuning Procedure}
+We employed \texttt{RandomizedSearchCV} to tune the XGBoost classifier, favoring it over Grid Search to explore a wider range of the hyperparameter space efficiently. Key parameters included the learning rate, tree depth, and subsampling ratios. We found that a lower learning rate (0.01) combined with a larger number of estimators (300) significantly improved generalization by ensuring the model learned the residuals gradually. Additionally, a maximum tree depth of 10 was selected. While deeper trees can capture more complex patterns, they risk overfitting. We balanced this by setting the subsample and colsample\_bytree parameters to 0.8, introducing stochasticity that further regularizes the model and prevents it from relying too heavily on any single feature or data point.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{feature_importance.png}
+\caption{Feature Weights Optimized for Maximizing Accuracy.}
+    \label{fig:feature_importance}
+\end{figure}
+
+\subsection{Ensemble Strategy for Generalization}
+To ensure the final solution was robust and not overly reliant on the biases of a single algorithm, we implemented a Voting Ensemble. We combined the predictions of the tuned XGBoost model and the Standard Random Forest using a weighted average of their predicted probabilities. 
+ 
+This ensemble strategy leverages the diverse strengths of the two algorithms: Random Forest reduces variance through bagging and random feature selection, while XGBoost reduces bias through boosting. The final model weights, approximately equal contributions, were determined based on their individual cross-validated performance. This approach yielded a consistent local Weighted F1-Score of approximately 0.78, which translated to a robust performance of approximately 0.93 on the unseen test data. This validates our hypothesis that a combination of temporal feature engineering and a metric-aligned optimization strategy is an effective approach for this challenge.
+
+\end{document}
